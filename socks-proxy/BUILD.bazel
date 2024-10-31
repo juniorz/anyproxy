@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "socks-proxy",
+    srcs = [
+        "resolver.go",
+        "rewriter.go",
+        "socks.go",
+    ],
+    importpath = "github.com/juniorz/anyproxy/socks-proxy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_rs_zerolog//:zerolog",
+        "@com_github_rs_zerolog//log",
+        "@com_github_things_go_go_socks5//:go-socks5",
+        "@com_github_things_go_go_socks5//statute",
+    ],
+)

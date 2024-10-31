@@ -1,0 +1,20 @@
+name: release
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: bazelbuild/setup-bazelisk@v3
+    - uses: actions/cache@v4
+      with:
+          path: "~/.cache/bazel"
+          key: bazel
+    - run: bazel build //...
+    - uses: softprops/action-gh-release@v2
+      with:
+        files: Release.txt
