@@ -7,9 +7,9 @@ on:
 jobs:
   release:
     outputs:
-      artifacts_checksum: ${{ steps.binary.outputs.hashes }}
-      container_image: ${{ steps.image.outputs.name }}
-      container_image_digest: ${{ steps.image.outputs.digest }}
+      artifacts-checksum: ${{ steps.binary.outputs.hashes }}
+      container-image-name: ${{ steps.image.outputs.name }}
+      container-image-digest: ${{ steps.image.outputs.digest }}
     permissions:
       contents: write
       packages: write
@@ -28,6 +28,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         KO_DOCKER_REPO: ghcr.io/${{ github.repository }}
+
     # See:
     # https://slsa.dev/blog/2022/08/slsa-github-workflows-generic-ga
     # https://github.com/goreleaser/goreleaser-example-slsa-provenance/blob/master/.github/workflows/goreleaser.yml
@@ -51,27 +52,10 @@ jobs:
         echo "name=$image" >> "$GITHUB_OUTPUT"
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-  binary-provenance:
+  provenance:
     needs: [release]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    uses: ./.github/workflows/provenance.yaml
     with:
-      base64-subjects: "${{ needs.release.outputs.artifacts_checksum }}"
-      upload-assets: true
-
-  image-provenance:
-    needs: [release]
-    permissions:
-      actions: read
-      id-token: write
-      packages: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
-    with:
-      image: ${{ needs.release.outputs.container_image }}
-      digest: ${{ needs.release.outputs.container_image_digest }}
-      registry-username: ${{ github.actor }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
+      artifacts-checksum: ${{ needs.release.outputs.artifacts-checksum }}
+      container-image-name: ${{ needs.release.outputs.container-image-name }}
+      container-image-digest: ${{ needs.release.outputs.container-image-digest }}
