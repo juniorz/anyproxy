@@ -1,6 +1,4 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-
-# simpler than cross compilation on Bazel?
 version: 2
 
 builds:
@@ -48,3 +46,17 @@ nfpms:
     bindir: /usr/bin
     maintainer: Reinaldo Souza <github@rei.nal.do>
     file_name_template: "anyproxy-go_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+kos:
+  - tags:
+      - '{{.Tag}}'
+      - '{{ if not .Prerelease }}latest{{ end }}'
+    bare: true
+    preserve_import_paths: false
+    sbom: none
+    platforms:
+      - all
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
