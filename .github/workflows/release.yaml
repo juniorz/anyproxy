@@ -4,11 +4,15 @@ on:
     tags:
       - "v*.*.*"
 
-permissions:
-  contents: write
-
 jobs:
   release:
+    outputs:
+      artifacts_checksum: ${{ steps.binary.outputs.hashes }}
+      container_image: ${{ steps.image.outputs.name }}
+      container_image_digest: ${{ steps.image.outputs.digest }}
+    permissions:
+      contents: write
+      packages: write
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -16,9 +20,11 @@ jobs:
         fetch-depth: 0
     - uses: actions/setup-go@v5
     - uses: goreleaser/goreleaser-action@v6
+      id: goreleaser
       with:
         distribution: goreleaser
         version: '~> v2'
         args: release --clean
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        KO_DOCKER_REPO: ghcr.io/${{ github.repository }}
