@@ -53,6 +53,10 @@ jobs:
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
   provenance:
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
     needs: [release]
     uses: ./.github/workflows/provenance.yaml
     with:

@@ -41,7 +41,8 @@ jobs:
   verify-artifacts-with-slsa-verifier:
     needs: [publish-artifacts-provenance]
     runs-on: ubuntu-latest
-    permissions: read-all
+    permissions:
+      contents: read
     steps:
       - name: Install the verifier
         uses: slsa-framework/slsa-verifier/actions/installer@v2.6.0
@@ -76,7 +77,8 @@ jobs:
   verify-image:
     needs: [publish-image-provenance]
     runs-on: ubuntu-latest
-    permissions: read-all
+    permissions:
+      packages: read
     env:
       IMAGE: ${{ inputs.container-image-name }}
       DIGEST: ${{ inputs.container-image-digest }}
