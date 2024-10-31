@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
+# simpler than cross compilation on Bazel?
+version: 2
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - "386"
+      - amd64
+      - arm
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: "386"
+
+    id: anyproxy
+    main: ./cmd/anyproxy
+    binary: anyproxy
+
+archives:
+  - name_template: >-
+      {{- .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end -}}
+
+checksum:
+  name_template: "checksums.txt"
+
+nfpms:
+  - id: anyproxy
+    package_name: anyproxy-go
+    builds:
+      - anyproxy
+    description: A 
+    homepage: https://github.com/juniorz/anyproxy
+    license: AGPL-3.0-or-later
+    formats:
+      - deb
+    bindir: /usr/bin
+    maintainer: Reinaldo Souza <github@rei.nal.do>
+    file_name_template: "anyproxy-go_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

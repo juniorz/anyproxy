@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_cross_binary")
+load("@bazel_gazelle//:def.bzl", "gazelle")
+
+# gazelle:prefix github.com/juniorz/anyproxy
+gazelle(name = "gazelle")
+
+gazelle(
+    name = "gazelle-update-repos",
+    args = [
+        "-from_file=go.mod",
+        "-to_macro=deps.bzl%go_dependencies",
+        "-prune",
+    ],
+    command = "update-repos",
+)
+
+[
+    go_cross_binary(
+        name = "anyproxy_{}".format(platform),
+        platform = "@io_bazel_rules_go//go/toolchain:{}".format(platform),
+        tags = [
+            "manual",
+        ],
+        target = "//cmd/anyproxy:anyproxy",
+    )
+
+    # bazel query 'kind(platform, @io_bazel_rules_go//go/toolchain:all)'
+    for platform in [
+        "darwin_amd64", "darwin_arm64", "linux_amd64", "windows_amd64"
+    ]
+]
