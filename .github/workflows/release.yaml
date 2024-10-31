@@ -57,6 +57,7 @@ jobs:
       actions: read
       id-token: write
       packages: write
+      contents: write
     needs: [release]
     uses: ./.github/workflows/provenance.yaml
     with:
