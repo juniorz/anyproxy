@@ -55,7 +55,6 @@ jobs:
           set -euo pipefail
           gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "*.tar.gz"
           gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "*.deb"
-          gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "*.zip"
           gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "$PROVENANCE"
       - name: Verify assets
         env:
@@ -67,8 +66,7 @@ jobs:
           while read -r line; do
               fn=$(echo $line | cut -d ' ' -f2)
               echo "Verifying $fn"
-              slsa-verifier verify-artifact --print-provenance \
-                                            --provenance-path "$PROVENANCE" \
+              slsa-verifier verify-artifact --provenance-path "$PROVENANCE" \
                                             --source-uri "github.com/$GITHUB_REPOSITORY" \
                                             --source-tag "$GITHUB_REF_NAME" \
                                             "$fn"
