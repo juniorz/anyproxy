@@ -28,3 +28,50 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         KO_DOCKER_REPO: ghcr.io/${{ github.repository }}
+    # See:
+    # https://slsa.dev/blog/2022/08/slsa-github-workflows-generic-ga
+    # https://github.com/goreleaser/goreleaser-example-slsa-provenance/blob/master/.github/workflows/goreleaser.yml
+    - name: generate binary hashes
+      id: binary
+      env:
+        ARTIFACTS: "${{ steps.goreleaser.outputs.artifacts }}"
+      run: |
+        set -euo pipefail
+        checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .path')
+        echo "hashes=$(cat $checksum_file | base64 -w0)" >> "$GITHUB_OUTPUT"
+    - name: generate image digest
+      id: image
+      env:
+        ARTIFACTS: "${{ steps.goreleaser.outputs.artifacts }}"
+      run: |
+        set -euo pipefail
+        image_and_digest=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Docker Manifest") | .path')
+        image=$(echo "${image_and_digest}" | cut -d'@' -f1 | cut -d':' -f1)
+        digest=$(echo "${image_and_digest}" | cut -d'@' -f2)
+        echo "name=$image" >> "$GITHUB_OUTPUT"
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  binary-provenance:
+    needs: [release]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.release.outputs.artifacts_checksum }}"
+      upload-assets: true
+
+  image-provenance:
+    needs: [release]
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: ${{ needs.release.outputs.container_image }}
+      digest: ${{ needs.release.outputs.container_image_digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
