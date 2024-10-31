@@ -38,7 +38,7 @@ jobs:
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
-  verify-artifacts-with-slsa-verifier:
+  verify-artifacts:
     needs: [publish-artifacts-provenance]
     runs-on: ubuntu-latest
     permissions:

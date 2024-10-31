@@ -13,6 +13,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
+      attestations: write
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -56,6 +58,16 @@ jobs:
         digest=$(echo "${image_and_digest}" | cut -d'@' -f2)
         echo "name=$image" >> "$GITHUB_OUTPUT"
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+    # publish provenance attestations with GH API
+    - uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: ${{ github.workspace }}/dist/*
+    - uses: actions/attest-build-provenance@v1
+      with:
+        subject-name: ghcr.io/${{ github.repository }}
+        subject-digest: ${{ steps.image.outputs.digest }}
+        push-to-registry: true
 
   provenance:
     permissions:
