@@ -1,5 +1,5 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_cross_binary")
 load("@bazel_gazelle//:def.bzl", "gazelle")
+load("@io_bazel_rules_go//go:def.bzl", "go_cross_binary")
 
 # gazelle:prefix github.com/juniorz/anyproxy
 gazelle(name = "gazelle")
@@ -21,11 +21,14 @@ gazelle(
         tags = [
             "manual",
         ],
-        target = "//cmd/anyproxy:anyproxy",
+        target = "//cmd/anyproxy",
     )
 
     # bazel query 'kind(platform, @io_bazel_rules_go//go/toolchain:all)'
     for platform in [
-        "darwin_amd64", "darwin_arm64", "linux_amd64", "windows_amd64"
+        "darwin_amd64",
+        "darwin_arm64",
+        "linux_amd64",
+        "windows_amd64",
     ]
 ]

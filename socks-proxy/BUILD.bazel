@@ -14,5 +14,6 @@ go_library(
         "@com_github_rs_zerolog//log",
         "@com_github_things_go_go_socks5//:go-socks5",
         "@com_github_things_go_go_socks5//statute",
+        "@org_golang_x_exp//rand",
     ],
 )

@@ -12,14 +12,14 @@ go_library(
     ],
 )
 
-go_binary(
-    name = "anyproxy",
-    embed = [":anyproxy_lib"],
-    visibility = ["//visibility:public"],
-)
-
 go_test(
     name = "anyproxy_test",
     srcs = ["main_test.go"],
     embed = [":anyproxy_lib"],
+)
+
+go_binary(
+    name = "anyproxy",
+    embed = [":anyproxy_lib"],
+    visibility = ["//visibility:public"],
 )
