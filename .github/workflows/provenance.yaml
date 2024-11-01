@@ -100,6 +100,8 @@ jobs:
 
           done <<<"$checksums"
 
+      # Note: no output w/o a TTY
+      # https://github.com/cli/cli/pull/9612
       - name: Verify assets (gh)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -155,6 +157,8 @@ jobs:
             --source-tag "$GITHUB_REF_NAME" \
             "$IMAGE@$DIGEST"
 
+      # Note: no output w/o a TTY
+      # https://github.com/cli/cli/pull/9612
       - name: Verify image (gh)
         env:
           GH_TOKEN: ${{ github.token }}
