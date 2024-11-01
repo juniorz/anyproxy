@@ -44,8 +44,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Install the verifier
-        uses: slsa-framework/slsa-verifier/actions/installer@v2.6.0
+      - uses: sigstore/cosign-installer@v3.7.0
+      - uses: slsa-framework/slsa-verifier/actions/installer@v2.6.0
 
       - name: Download assets
         env:
@@ -56,7 +56,7 @@ jobs:
           gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "*.tar.gz"
           gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "*.deb"
           gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "$PROVENANCE"
-      - name: Verify assets
+      - name: Verify assets (slsa-verifier)
         env:
           CHECKSUMS: ${{ inputs.artifacts-checksum }}
           PROVENANCE: "${{ needs.publish-artifacts-provenance.outputs.provenance-name }}"
@@ -64,12 +64,56 @@ jobs:
           set -euo pipefail
           checksums=$(echo "$CHECKSUMS" | base64 -d)
           while read -r line; do
-              fn=$(echo $line | cut -d ' ' -f2)
-              echo "Verifying $fn"
-              slsa-verifier verify-artifact --provenance-path "$PROVENANCE" \
-                                            --source-uri "github.com/$GITHUB_REPOSITORY" \
-                                            --source-tag "$GITHUB_REF_NAME" \
-                                            "$fn"
+            fn=$(echo $line | cut -d ' ' -f2)
+            echo "Verifying $fn"
+            slsa-verifier verify-artifact \
+              --provenance-path "$PROVENANCE" \
+              --source-uri "github.com/$GITHUB_REPOSITORY" \
+              --source-tag "$GITHUB_REF_NAME" \
+              "$fn"
+
+          done <<<"$checksums"
+
+      - name: Verify assets (cosign)
+        env:
+          CHECKSUMS: ${{ inputs.artifacts-checksum }}
+          PROVENANCE: "${{ needs.publish-artifacts-provenance.outputs.provenance-name }}"
+        run: |
+          set -euo pipefail
+
+          # extract the certificate
+          cat "$PROVENANCE" | jq -r ".signatures[0].cert" | base64 -w0 > cert
+
+          checksums=$(echo "$CHECKSUMS" | base64 -d)
+          while read -r line; do
+            fn=$(echo $line | cut -d ' ' -f2)
+            echo "Verifying $fn"
+
+            cosign verify-blob-attestation \
+              --type slsaprovenance \
+              --signature "$PROVENANCE" \
+              --certificate ./cert \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-identity-regexp '^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+$' \
+              "$fn"
+
+          done <<<"$checksums"
+
+      - name: Verify assets (cosign)
+        env:
+          CHECKSUMS: ${{ inputs.artifacts-checksum }}
+        run: |
+          set -euo pipefail
+
+          checksums=$(echo "$CHECKSUMS" | base64 -d)
+          while read -r line; do
+            fn=$(echo $line | cut -d ' ' -f2)
+            echo "Verifying $fn"
+
+            gh attestation verify \
+                --repo $GITHUB_REPOSITORY \
+                "$fn"
+
           done <<<"$checksums"
 
   verify-image:
@@ -88,24 +132,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.7.0
-
-      - name: Install the verifier
-        uses: slsa-framework/slsa-verifier/actions/installer@v2.6.0
+      - uses: sigstore/cosign-installer@v3.7.0
+      - uses: slsa-framework/slsa-verifier/actions/installer@v2.6.0
 
       - name: Verify image (cosign)
         run: |
           cosign verify-attestation \
-              --type slsaprovenance \
-              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-identity-regexp '^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+$' \
-              "$IMAGE@$DIGEST"
+            --type slsaprovenance \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+$' \
+            "$IMAGE@$DIGEST"
 
       - name: Verify image (slsa-verifier)
         run: |
           set -euo pipefail
-          slsa-verifier verify-image --print-provenance \
-                                     --source-uri "github.com/$GITHUB_REPOSITORY" \
-                                     --source-tag "$GITHUB_REF_NAME" \
-                                     "$IMAGE@$DIGEST"
+          slsa-verifier verify-image \
+            --print-provenance \
+            --source-uri "github.com/$GITHUB_REPOSITORY" \
+            --source-tag "$GITHUB_REF_NAME" \
+            "$IMAGE@$DIGEST"
+
+      - name: Verify image (gh)
+        run: |
+          set -euo pipefail
+
+          # use image tag
+          gh attestation verify --format json \
+            --bundle-from-oci oci://$IMAGE:$GITHUB_REF_NAME \
+            --repo $GITHUB_REPOSITORY
+
+          # use image digest
+          gh attestation verify --format json \
+            --bundle-from-oci oci://$IMAGE@$DIGEST \
+            --repo $GITHUB_REPOSITORY
