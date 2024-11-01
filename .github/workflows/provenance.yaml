@@ -99,8 +99,9 @@ jobs:
 
           done <<<"$checksums"
 
-      - name: Verify assets (cosign)
+      - name: Verify assets (gh)
         env:
+          GH_TOKEN: ${{ github.token }}
           CHECKSUMS: ${{ inputs.artifacts-checksum }}
         run: |
           set -euo pipefail
@@ -153,6 +154,8 @@ jobs:
             "$IMAGE@$DIGEST"
 
       - name: Verify image (gh)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
