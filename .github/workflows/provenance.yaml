@@ -43,6 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      attestations: read
     steps:
       - uses: sigstore/cosign-installer@v3.7.0
       - uses: slsa-framework/slsa-verifier/actions/installer@v2.6.0
@@ -122,6 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       packages: read
+      attestations: read
     env:
       IMAGE: ${{ inputs.container-image-name }}
       DIGEST: ${{ inputs.container-image-digest }}
@@ -160,11 +162,11 @@ jobs:
           set -euo pipefail
 
           # use image tag
-          gh attestation verify --format json \
+          gh attestation verify \
             --bundle-from-oci oci://$IMAGE:$GITHUB_REF_NAME \
             --repo $GITHUB_REPOSITORY
 
           # use image digest
-          gh attestation verify --format json \
+          gh attestation verify \
             --bundle-from-oci oci://$IMAGE@$DIGEST \
             --repo $GITHUB_REPOSITORY

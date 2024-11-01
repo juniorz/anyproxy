@@ -80,6 +80,7 @@ jobs:
       id-token: write
       packages: write
       contents: write
+      attestations: read
     needs: [release]
     uses: ./.github/workflows/provenance.yaml
     with:
