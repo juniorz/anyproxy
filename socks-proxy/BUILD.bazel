@@ -3,6 +3,9 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "socks-proxy",
     srcs = [
+        "chain.go",
+        "host_translate.go",
+        "port_map.go",
         "resolver.go",
         "rewriter.go",
         "socks.go",

@@ -24,12 +24,6 @@ var (
 	ErrServerClosed = fmt.Errorf("socks: server closed")
 )
 
-type Server interface {
-	Shutdown(ctx context.Context) error
-	Serve(net.Listener) error
-	Close() error
-}
-
 type connState int
 
 const (
@@ -273,24 +267,42 @@ type Config struct {
 	socks5.AddressRewriter
 }
 
-func NewServer(c *Config) Server {
+func newServer(ctx context.Context, c *Config) *server {
+	l := zl.Ctx(ctx)
+
+	return &server{
+		w: socks5.NewServer(
+			socks5.WithLogger(
+				socks5.NewLogger(
+					log.New(l, "", 0),
+				),
+			),
+			socks5.WithResolver(c.NameResolver),
+			socks5.WithRewriter(c.AddressRewriter),
+		),
+
+		log: l, // ??
+	}
+}
+
+func NewServerFor(ctx context.Context, c *Config) (*server, func(), error) {
 	ll := zl.With().
 		Str("component", "socks").
 		Logger()
 
-	// Create a SOCKS5 server
-	w := socks5.NewServer(
-		socks5.WithLogger(
-			socks5.NewLogger(
-				log.New(&ll, "", 0),
-			),
-		),
-		socks5.WithResolver(c.NameResolver),
-		socks5.WithRewriter(c.AddressRewriter),
-	)
+	server := newServer(ll.WithContext(ctx), c)
 
-	return &server{
-		w:   w,
-		log: &ll,
-	}
+	return server, func() {
+		ll.Info().Msgf("listening to SOCKS server on %s", c.ListenAddress)
+
+		l, err := net.Listen("tcp", c.ListenAddress)
+		if err != nil {
+			ll.Error().Err(err).Msg("failed to create listener for SOCKS proxy")
+		}
+
+		if err := server.Serve(l); err != ErrServerClosed {
+			ll.Error().Err(err).Msg("socks server terminated")
+		}
+
+	}, nil
 }

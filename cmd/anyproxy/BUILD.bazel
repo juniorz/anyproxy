@@ -6,9 +6,11 @@ go_library(
     importpath = "github.com/juniorz/anyproxy/cmd/anyproxy",
     visibility = ["//visibility:private"],
     deps = [
+        "//http-echo",
         "//socks-proxy",
         "@com_github_rs_zerolog//:zerolog",
         "@com_github_rs_zerolog//log",
+        "@com_github_things_go_go_socks5//:go-socks5",
     ],
 )
 

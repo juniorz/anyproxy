@@ -12,34 +12,63 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/things-go/go-socks5"
 
+	httpecho "github.com/juniorz/anyproxy/http-echo"
 	socksproxy "github.com/juniorz/anyproxy/socks-proxy"
 )
 
 var (
 	listenHost = flag.String("listen", "127.0.0.1", "listen on the given IP address.")
 	socksPort  = flag.String("port", "8000", "the listen port for the SOCKS5 server. Use -port=0 to disable the SOCKS5 server.")
-	httpPort   = flag.String("http-port", "8080", "the listen port for the SOCKS5 server. Use -http-port=0 to disable the HTTP server.")
+	httpPort   = flag.String("http-port", "8080", "the listen port for the HTTP server. Use -http-port=0 to disable the HTTP server.")
+	httpsPort  = flag.String("https-port", "8443", "the listen port for the HTTPS server. Use -https-port=0 to disable the HTTPS server.")
 
-	targetHostPort = flag.String("target", "127.0.0.1:0", "the target address (host:port) for ANY request through the proxy. Use port=0 to preserve the destination port in the original request.")
+	targetHost = flag.String("target", "", "the target address for ANY request through the SOCKS proxy. Use -target=0.0.0.0 to preserve the destination address in the original request. Use an empty target to proxy to the internal HTTP(S) server.")
+	targetPort = flag.String("target-port", "0", "the target port for ANY request through the proxy. Use -target-port=0 to preserve the destination port in the original request.")
 )
+
+type Server interface {
+	Shutdown(ctx context.Context) error
+}
 
 func main() {
 	flag.Parse()
 	configureLogging()
 
-	socksServer, err := socksProxyServer()
+	// base context
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	config, err := proxyConfig()
 	if err != nil {
 		panic(err)
 	}
 
-	go listenAndServeSOCKS(socksServer)
+	fmt.Println("Running, press CTRL+C to terminate...")
 
-	// main context
-	ctx, cancel := context.WithCancelCause(context.Background())
-	defer cancel(nil)
+	socksServer, serveSOCKS, err := socksproxy.NewServerFor(ctx, config)
+	if err != nil {
+		panic(err)
+	}
 
-	fmt.Println("Running, press ctrl+c to terminate...")
+	httpAddr := net.JoinHostPort(*listenHost, *httpPort)
+	httpServer, serveHTTP, err := httpecho.NewServerFor(ctx, httpAddr)
+	if err != nil {
+		panic(err)
+	}
+
+	httpsAddr := net.JoinHostPort(*listenHost, *httpsPort)
+	httpsServer, serveHTTPS, err := httpecho.NewServerForHTTPS(ctx, httpsAddr)
+	if err != nil {
+		panic(err)
+	}
+
+	// serve proxies
+	go serveSOCKS()
+	go serveHTTP()
+	go serveHTTPS()
+
 	s := <-terminateSignal() // Wait for termination
 	fmt.Printf("%s received. Terminating...\n", s)
 
@@ -47,26 +76,20 @@ func main() {
 	// _ = cause
 	// cancel(cause) // immediately cancel all ongoing tasks
 
-	// Ignore errors and shutdown servers with a timeout
+	// shutdown servers with a timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer shutdownCancel()
 
 	if err := socksServer.Shutdown(shutdownCtx); err != nil {
 		log.Error().Err(err).Msg("could not shutdown")
 	}
-}
 
-func listenAndServeSOCKS(socksServer socksproxy.Server) {
-	hostPort := net.JoinHostPort(*listenHost, *socksPort)
-
-	log.Info().Msgf("listening to SOCKS server on %s", hostPort)
-	socksListener, err := net.Listen("tcp", hostPort)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to create listener for SOCKS proxy")
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Error().Err(err).Msg("could not shutdown")
 	}
 
-	if err := socksServer.Serve(socksListener); err != socksproxy.ErrServerClosed {
-		log.Error().Err(err).Msg("socks server terminated")
+	if err := httpsServer.Shutdown(shutdownCtx); err != nil {
+		log.Error().Err(err).Msg("could not shutdown")
 	}
 }
 
@@ -82,33 +105,42 @@ func configureLogging() {
 }
 
 func proxyConfig() (*socksproxy.Config, error) {
-	host, _, err := net.SplitHostPort(*targetHostPort)
-	if err != nil {
-		return nil, err
+	allRewriters := make([]socks5.AddressRewriter, 0, 3)
+
+	// use target-port=0 to provide a valid port with semantics "keep unchanged"
+	if *targetPort == "" {
+		panic("invalid -target-port=<empty>")
 	}
 
-	targetAddr := net.ParseIP(host)
+	// <empty> targetHost proxies to the internal HTTP(S) server
+	if *targetHost == "" {
+		*targetHost = *listenHost
+
+		// map to the internal HTTP(S) server ports
+		if *targetPort == "0" {
+			allRewriters = append(allRewriters,
+				socksproxy.MapPort("80", *httpPort),
+				socksproxy.MapPort("443", *httpsPort),
+			)
+		}
+	}
+
+	// only IP supported atm
+	targetAddr := net.ParseIP(*targetHost)
 	if targetAddr == nil {
 		return nil, fmt.Errorf("target address is not an IP")
 	}
 
-	rewriter, err := socksproxy.RedirectTo(*targetHostPort)
+	addrRewriter, err := socksproxy.RedirectTo(net.JoinHostPort(*targetHost, *targetPort))
 	if err != nil {
 		return nil, err
 	}
+
+	allRewriters = append(allRewriters, addrRewriter)
 
 	return &socksproxy.Config{
 		ListenAddress:   net.JoinHostPort(*listenHost, *socksPort),
 		NameResolver:    socksproxy.ResolveTo(targetAddr),
-		AddressRewriter: rewriter,
+		AddressRewriter: socksproxy.NewChain(allRewriters...),
 	}, nil
-}
-
-func socksProxyServer() (socksproxy.Server, error) {
-	config, err := proxyConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return socksproxy.NewServer(config), nil
 }
